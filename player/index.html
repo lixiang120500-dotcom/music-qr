@@ -364,10 +364,9 @@
 <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
 
 <script>
-  // ── 从 URL 路径取歌曲 ID ──────────────────────────────────
-  // URL 格式: /player/<song_id>  或  /music-qr/player/<song_id>
-  const pathParts = location.pathname.replace(/\/$/, '').split('/');
-  const songId    = pathParts[pathParts.length - 1];
+  // ── 从 URL query 参数取歌曲 ID ───────────────────────────
+  // URL 格式: /player/?id=<song_id>  或  /player/index.html?id=<song_id>
+  const songId = new URLSearchParams(location.search).get('id') || '';
 
   // 数据源：Vercel API（永远最新，无缓存问题）
   const VERCEL_API = 'https://music-qr-vercel.vercel.app/api/songs';
