@@ -368,8 +368,8 @@
   // URL 格式: /player/?id=<song_id>  或  /player/index.html?id=<song_id>
   const songId = new URLSearchParams(location.search).get('id') || '';
 
-  // 数据源：Vercel API（永远最新，无缓存问题）
-  const VERCEL_API = 'https://music-qr-vercel.vercel.app/api/songs';
+  // 数据源：GitHub Pages 静态 songs.json（不依赖 Vercel，手机任何网络均可访问）
+  const SONGS_URL = 'https://lixiang120500-dotcom.github.io/music-qr/songs.json';
 
   const audio = document.getElementById('audio');
   let lyrics = [], curLyricIdx = -1, isLooping = true, isDragging = false;
@@ -377,12 +377,12 @@
   // ── 初始化 ────────────────────────────────────────────────
   async function init() {
     try {
-      // 从 Vercel API 读取歌曲数据
-      const res = await fetch(`${VERCEL_API}?id=${songId}&t=${Date.now()}`);
-      if (!res.ok) throw new Error('歌曲加载失败');
-      const song = await res.json();
-      if (song.error) throw new Error(song.error);
-      if (!song.id) throw new Error('歌曲不存在');
+      // 从 GitHub Pages 静态 songs.json 读取歌曲数据
+      const res = await fetch(`${SONGS_URL}?t=${Date.now()}`);
+      if (!res.ok) throw new Error('歌曲列表加载失败');
+      const songs = await res.json();
+      const song = songs[songId];
+      if (!song) throw new Error('歌曲不存在');
 
       // 应用主题色
       applyColor(song.cover_color || '#6c63ff');
