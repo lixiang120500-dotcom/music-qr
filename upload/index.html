@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 音乐二维码工具</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #6c63ff;
+      --primary-dark: #5a52d5;
+      --bg: #0f0f1a;
+      --card: #1a1a2e;
+      --card2: #16213e;
+      --text: #e8e8f0;
+      --muted: #8888aa;
+      --border: #2a2a4a;
+      --success: #4ade80;
+      --error: #f87171;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 28px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    header .logo { font-size: 30px; }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .container {
+      max-width: 1100px; margin: 0 auto;
+      padding: 28px 24px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    @media (max-width: 768px) { .container { grid-template-columns: 1fr; padding: 16px; } }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+    }
+    .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+    input[type="text"], textarea {
+      width: 100%; background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 11px 13px; color: var(--text);
+      font-size: 14px; outline: none; transition: border-color 0.2s; font-family: inherit;
+    }
+    input[type="text"]:focus, textarea:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
+
+    .color-row { display: flex; gap: 9px; flex-wrap: wrap; }
+    .color-dot {
+      width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: transform 0.15s, border-color 0.15s;
+    }
+    .color-dot:hover { transform: scale(1.15); }
+    .color-dot.active { border-color: white; transform: scale(1.15); }
+
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 28px 16px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s; position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--primary); background: rgba(108,99,255,0.05);
+    }
+    .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-zone .icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-zone .hint { font-size: 12px; color: var(--muted); }
+    .upload-zone .file-name { margin-top: 8px; font-size: 13px; color: var(--success); font-weight: 500; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 12px 24px; border-radius: 11px; font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none; transition: all 0.2s; width: 100%;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* 进度 */
+    .progress-wrap { display: none; margin-top: 14px; }
+    .progress-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, var(--primary), #a78bfa);
+      border-radius: 3px; width: 0%; transition: width 0.3s;
+    }
+    .progress-text { font-size: 12px; color: var(--muted); margin-top: 5px; text-align: center; }
+
+    /* 歌曲列表 */
+    .song-list { display: flex; flex-direction: column; gap: 10px; }
+    .song-item {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 11px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px; transition: border-color 0.2s;
+    }
+    .song-item:hover { border-color: var(--primary); }
+    .song-cover {
+      width: 42px; height: 42px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .song-info { flex: 1; min-width: 0; }
+    .song-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-artist { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .song-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; transition: all 0.2s; text-decoration: none;
+    }
+    .icon-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(108,99,255,0.1); }
+    .icon-btn.del:hover { border-color: var(--error); color: var(--error); background: rgba(248,113,113,0.1); }
+
+    .empty-state { text-align: center; padding: 36px 16px; color: var(--muted); }
+    .empty-state .icon { font-size: 44px; margin-bottom: 10px; }
+
+    .tip { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+    .tip code { background: var(--card2); padding: 1px 5px; border-radius: 4px; font-family: monospace; color: #a78bfa; }
+
+    /* 二维码弹窗 */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 32px 36px; text-align: center;
+      max-width: 400px; width: 100%; position: relative;
+    }
+    .modal-close {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; color: var(--muted);
+      font-size: 22px; cursor: pointer; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .modal .artist { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+    /* 圆形二维码 */
+    .qr-wrap { position: relative; display: inline-block; margin-bottom: 18px; }
+    #qrCanvas {
+      border-radius: 50%;
+      box-shadow: 0 0 0 8px rgba(108,99,255,0.12), 0 0 0 16px rgba(108,99,255,0.06), 0 16px 40px rgba(0,0,0,0.4);
+      display: block;
+    }
+    .qr-ring {
+      position: absolute; inset: -10px; border-radius: 50%;
+      border: 2px solid rgba(108,99,255,0.35);
+      animation: pulse 2.5s ease-out infinite;
+    }
+    .qr-ring:nth-child(2) { animation-delay: 0.8s; }
+    .qr-ring:nth-child(3) { animation-delay: 1.6s; }
+    @keyframes pulse { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.22);opacity:0} }
+
+    .perm-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3);
+      color: var(--success); margin-bottom: 16px;
+    }
+    .perm-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .modal-btns { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+    .modal-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; text-decoration: none; transition: all 0.2s;
+    }
+    .modal-btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
+    .modal-btn-primary:hover { opacity: 0.9; }
+    .modal-btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .modal-btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+    .url-box {
+      margin-top: 14px; background: var(--card2); border: 1px solid var(--border);
+      border-radius: 9px; padding: 9px 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .url-text { flex: 1; font-size: 11px; color: var(--muted); word-break: break-all; text-align: left; font-family: monospace; }
+    .copy-btn {
+      flex-shrink: 0; background: var(--border); border: none; color: var(--text);
+      padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; transition: background 0.2s;
+    }
+    .copy-btn:hover { background: var(--primary); }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 11px; padding: 12px 22px; font-size: 13px;
+      opacity: 0; transition: all 0.3s; z-index: 9999; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: var(--success); color: var(--success); }
+    #toast.error   { border-color: var(--error);   color: var(--error); }
+
+    /* Token 横幅 */
+    .token-banner {
+      background: var(--card2); border-bottom: 1px solid var(--border);
+      padding: 12px 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .token-banner label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .token-input {
+      flex: 1; min-width: 200px; max-width: 420px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text);
+      font-size: 13px; font-family: monospace; outline: none;
+      transition: border-color 0.2s;
+    }
+    .token-input:focus { border-color: var(--primary); }
+    .token-save {
+      padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      background: var(--primary); color: white; border: none; cursor: pointer;
+      transition: opacity 0.2s; white-space: nowrap;
+    }
+    .token-save:hover { opacity: 0.85; }
+    .token-status { font-size: 12px; }
+    .token-status.ok   { color: var(--success); }
+    .token-status.warn { color: var(--warn, #fbbf24); }
+    .token-help { font-size: 12px; color: var(--muted); }
+    .token-help a { color: #a78bfa; }
+
+    /* 加载骨架 */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px; height: 62px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎵</div>
+  <div>
+    <h1>音乐二维码工具</h1>
+    <p>上传音乐 → 生成永久二维码 → 任何人扫码播放</p>
+  </div>
+</header>
+
+<!-- Token 输入横幅 -->
+<div class="token-banner">
+  <label>🔑 GitHub Token：</label>
+  <input class="token-input" type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxx（保存在本地浏览器，不会上传）">
+  <button class="token-save" onclick="saveToken()">保存</button>
+  <span class="token-status" id="tokenStatus"></span>
+  <span class="token-help">没有 Token？<a href="https://github.com/settings/tokens/new?scopes=repo&description=music-qr-tool" target="_blank">点此创建</a>（勾选 repo 权限）</span>
+</div>
+
+<div class="container">
+  <!-- 左：上传表单 -->
+  <div class="card">
+    <h2>📤 上传新歌曲</h2>
+
+    <div class="form-group">
+      <label>音频文件 *</label>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="audioFile" accept=".mp3,.m4a,.ogg,.wav,.flac,.aac">
+        <div class="icon">🎧</div>
+        <div>点击或拖拽上传音频文件</div>
+        <div class="hint">支持 MP3 / M4A / OGG / WAV / FLAC / AAC</div>
+        <div class="file-name" id="fileName"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>歌名 *</label>
+      <input type="text" id="title" placeholder="输入歌曲名称">
+    </div>
+
+    <div class="form-group">
+      <label>歌手</label>
+      <input type="text" id="artist" placeholder="输入歌手名（可选）">
+    </div>
+
+    <div class="form-group">
+      <label>封面颜色</label>
+      <div class="color-row" id="colorRow">
+        <div class="color-dot active" style="background:#6c63ff" data-color="#6c63ff"></div>
+        <div class="color-dot" style="background:#f43f5e" data-color="#f43f5e"></div>
+        <div class="color-dot" style="background:#f97316" data-color="#f97316"></div>
+        <div class="color-dot" style="background:#eab308" data-color="#eab308"></div>
+        <div class="color-dot" style="background:#22c55e" data-color="#22c55e"></div>
+        <div class="color-dot" style="background:#06b6d4" data-color="#06b6d4"></div>
+        <div class="color-dot" style="background:#ec4899" data-color="#ec4899"></div>
+        <div class="color-dot" style="background:#8b5cf6" data-color="#8b5cf6"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>歌词</label>
+      <textarea id="lyrics" placeholder="粘贴歌词...
+
+支持 LRC 格式（带时间戳自动同步）：
+[00:12.34] 第一行歌词
+[00:16.00] 第二行歌词
+
+也支持纯文本歌词（按进度均匀滚动）"></textarea>
+      <div class="tip">推荐 LRC 格式 <code>[mm:ss.xx]</code> 实现精准同步，也可直接粘贴纯文本。</div>
+    </div>
+
+    <button class="btn btn-primary" id="uploadBtn" onclick="uploadSong()">
+      ✨ 上传并生成二维码
+    </button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">准备中...</div>
+    </div>
+  </div>
+
+  <!-- 右：歌曲列表 -->
+  <div class="card">
+    <h2>🎶 已上传歌曲</h2>
+    <div class="song-list" id="songList">
+      <div class="skeleton"></div>
+      <div class="skeleton" style="height:62px;margin-top:10px;opacity:.6"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 二维码弹窗 -->
+<div class="modal-overlay" id="qrModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div class="perm-badge"><span class="perm-dot"></span>永久有效 · GitHub Pages</div>
+    <h3 id="modalTitle">—</h3>
+    <div class="artist" id="modalArtist">—</div>
+    <div class="qr-wrap">
+      <div class="qr-ring"></div><div class="qr-ring"></div><div class="qr-ring"></div>
+      <canvas id="qrCanvas" width="240" height="240"></canvas>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">📱 扫描二维码，任何网络均可播放</div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-primary" onclick="downloadQR()">⬇️ 下载二维码</button>
+      <a class="modal-btn modal-btn-outline" id="previewLink" target="_blank">▶️ 预览</a>
+    </div>
+    <div class="url-box">
+      <div class="url-text" id="modalUrl"></div>
+      <button class="copy-btn" onclick="copyModalUrl()">复制</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- qrcode.js（纯前端生成二维码） -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<script>
+// ── 配置（从 localStorage 读取，不硬编码在代码里）──────────
+const GH_OWNER    = 'lixiang120500-dotcom';
+const GH_REPO     = 'music-qr';
+const PAGES_URL   = 'https://lixiang120500-dotcom.github.io/music-qr';
+const RELEASE_TAG = 'audio-files';
+
+function getToken() { return localStorage.getItem('gh_token') || ''; }
+function setToken(t) { localStorage.setItem('gh_token', t); }
+
+let selectedColor = '#6c63ff';
+let currentSongId = null;   // 当前弹窗的歌曲 ID
+
+// ── GitHub API 封装 ──────────────────────────────────────────
+async function ghFetch(method, path, body, opts = {}) {
+  const token = getToken();
+  if (!token) throw new Error('请先在页面顶部填写 GitHub Token');
+  const url = (opts.uploadBase || 'https://api.github.com') + path;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': opts.contentType || 'application/json',
+    },
+    body: body instanceof ArrayBuffer || body instanceof Uint8Array
+      ? body
+      : (body ? JSON.stringify(body) : undefined),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`GitHub API ${method} ${path} → ${res.status}: ${err}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
+}
+
+// ── songs.json 读写 ──────────────────────────────────────────
+async function getSongs() {
+  try {
+    const r = await ghFetch('GET', `/repos/${GH_OWNER}/${GH_REPO}/contents/songs.json`);
+    return { songs: JSON.parse(atob(r.content.replace(/\n/g,''))), sha: r.sha };
+  } catch(e) {
+    if (e.message.includes('404')) return { songs: {}, sha: null };
+    throw e;
+  }
+}
+
+async function saveSongs(songs, sha) {
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(songs, null, 2))));
+  const payload = { message: `update songs.json`, content };
+  if (sha) payload.sha = sha;
+  await ghFetch('PUT', `/repos/${GH_OWNER}/${GH_REPO}/contents/songs.json`, payload);
+}
+
+// ── GitHub Release 管理 ──────────────────────────────────────
+async function getOrCreateRelease() {
+  try {
+    return await ghFetch('GET', `/repos/${GH_OWNER}/${GH_REPO}/releases/tags/${RELEASE_TAG}`);
+  } catch(e) {
+    if (e.message.includes('404')) {
+      return await ghFetch('POST', `/repos/${GH_OWNER}/${GH_REPO}/releases`, {
+        tag_name: RELEASE_TAG, name: 'Audio Files',
+        body: '音频文件存储（由 music-qr-tool 自动管理）',
+        draft: false, prerelease: false,
+      });
+    }
+    throw e;
+  }
+}
+
+async function uploadAudio(releaseId, filename, arrayBuffer, mimeType) {
+  // 删除同名旧文件
+  try {
+    const assets = await ghFetch('GET', `/repos/${GH_OWNER}/${GH_REPO}/releases/${releaseId}/assets`);
+    for (const a of assets) {
+      if (a.name === filename) {
+        await ghFetch('DELETE', `/repos/${GH_OWNER}/${GH_REPO}/releases/assets/${a.id}`);
+        break;
+      }
+    }
+  } catch(e) { /* 忽略 */ }
+
+  const r = await ghFetch(
+    'POST',
+    `/repos/${GH_OWNER}/${GH_REPO}/releases/${releaseId}/assets?name=${encodeURIComponent(filename)}`,
+    new Uint8Array(arrayBuffer),
+    { uploadBase: 'https://uploads.github.com', contentType: mimeType }
+  );
+  return r.browser_download_url;
+}
+
+// ── 圆形二维码生成（Canvas）─────────────────────────────────
+async function drawRoundQR(url, canvas) {
+  const SIZE = 240;
+  canvas.width = canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+
+  // 1. 用 qrcode.js 生成方形二维码到离屏 canvas
+  const offscreen = document.createElement('canvas');
+  await QRCode.toCanvas(offscreen, url, {
+    width: SIZE,
+    margin: 1,
+    errorCorrectionLevel: 'H',
+    color: { dark: '#000000', light: '#ffffff' },
+  });
+
+  // 2. 计算二维码在圆内的尺寸（内切正方形，留 8% 白边）
+  const inner  = Math.floor(SIZE / 1.42 * 0.88);
+  const offset = Math.floor((SIZE - inner) / 2);
+
+  // 3. 画圆形白色背景
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.clip();
+
+  // 4. 居中绘制完整二维码（不裁切，保证三个定位角完整）
+  ctx.drawImage(offscreen, offset, offset, inner, inner);
+  ctx.restore();
+}
+
+// ── 上传流程 ─────────────────────────────────────────────────
+async function uploadSong() {
+  const file   = document.getElementById('audioFile').files[0];
+  const title  = document.getElementById('title').value.trim();
+  const artist = document.getElementById('artist').value.trim();
+  const lyrics = document.getElementById('lyrics').value.trim();
+
+  if (!file)  return showToast('请选择音频文件', 'error');
+  if (!title) return showToast('请输入歌名', 'error');
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 上传中...';
+  showProgress(true, '读取文件...', 5);
+
+  try {
+    // 1. 读取文件
+    const arrayBuffer = await file.arrayBuffer();
+    const ext = file.name.split('.').pop().toLowerCase();
+    const mimeMap = { mp3:'audio/mpeg', m4a:'audio/mp4', ogg:'audio/ogg', wav:'audio/wav', flac:'audio/flac', aac:'audio/aac' };
+    const mime = mimeMap[ext] || 'application/octet-stream';
+
+    const songId  = Math.random().toString(36).slice(2, 10);
+    const filename = `${songId}.${ext}`;
+
+    // 2. 上传音频到 GitHub Release
+    showProgress(true, '上传音频到 GitHub...', 20);
+    const release  = await getOrCreateRelease();
+    showProgress(true, '上传音频到 GitHub...', 60);
+    const audioUrl = await uploadAudio(release.id, filename, arrayBuffer, mime);
+
+    // 3. 更新 songs.json
+    showProgress(true, '保存歌曲信息...', 85);
+    const { songs, sha } = await getSongs();
+    songs[songId] = {
+      id: songId, title, artist, lyrics,
+      cover_color: selectedColor,
+      audio_url: audioUrl, filename,
+      created_at: new Date().toISOString(),
+    };
+    await saveSongs(songs, sha);
+
+    showProgress(true, '✅ 上传成功！', 100);
+    showToast('🎉 上传成功！', 'success');
+
+    // 重置表单
+    document.getElementById('audioFile').value = '';
+    document.getElementById('fileName').textContent = '';
+    document.getElementById('title').value = '';
+    document.getElementById('artist').value = '';
+    document.getElementById('lyrics').value = '';
+
+    // 显示二维码弹窗
+    setTimeout(() => {
+      showProgress(false);
+      openQRModal(songId, title, artist);
+      loadSongs();
+    }, 800);
+
+  } catch(e) {
+    showToast('上传失败：' + e.message, 'error');
+    showProgress(false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ 上传并生成二维码';
+  }
+}
+
+// ── 二维码弹窗 ───────────────────────────────────────────────
+async function openQRModal(songId, title, artist) {
+  currentSongId = songId;
+  const playerUrl = `${PAGES_URL}/player/${songId}`;
+
+  document.getElementById('modalTitle').textContent  = title;
+  document.getElementById('modalArtist').textContent = artist || '未知歌手';
+  document.getElementById('modalUrl').textContent    = playerUrl;
+  document.getElementById('previewLink').href        = playerUrl;
+
+  const canvas = document.getElementById('qrCanvas');
+  await drawRoundQR(playerUrl, canvas);
+
+  document.getElementById('qrModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('qrModal').classList.remove('show');
+}
+
+function downloadQR() {
+  const link = document.createElement('a');
+  link.download = `qr_${currentSongTitle || 'music'}.png`;
+  link.href = document.getElementById('qrCanvas').toDataURL('image/png');
+  link.click();
+}
+
+async function copyLink() {
+  await navigator.clipboard.writeText(currentPlayerUrl).catch(() => {});
+  showToast('✓ 链接已复制', 'success');
+}
+
+// ── 工具函数 ──────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = '', 3500);
+}
+
+function showProgress(show, text = '', pct = 0) {
+  const wrap = document.getElementById('progressWrap');
+  wrap.style.display = show ? 'block' : 'none';
+  if (show) {
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressText').textContent = text;
+  }
+}
+
+// ── 歌曲列表 ─────────────────────────────────────────────────
+async function loadSongs() {
+  const list = document.getElementById('songList');
+  try {
+    const { songs } = await getSongs();
+    const arr = Object.values(songs).sort((a,b) => b.created_at.localeCompare(a.created_at));
+    if (!arr.length) {
+      list.innerHTML = `<div class="empty-state"><div class="icon">🎵</div><div>暂无歌曲，快去上传吧！</div></div>`;
+      return;
+    }
+    list.innerHTML = arr.map(s => `
+      <div class="song-item" id="song-${s.id}">
+        <div class="song-cover" style="background:linear-gradient(135deg,${esc(s.cover_color||'#6c63ff')},#1a1a2e)">🎵</div>
+        <div class="song-info">
+          <div class="song-title">${esc(s.title)}</div>
+          <div class="song-artist">${esc(s.artist || '未知歌手')}</div>
+        </div>
+        <div class="song-actions">
+          <button class="icon-btn" title="查看二维码" onclick="openQRModal('${s.id}','${esc(s.title)}','${esc(s.artist||'')}')">📱</button>
+          <a class="icon-btn" title="播放" href="${PAGES_URL}/player/${s.id}" target="_blank">▶️</a>
+          <button class="icon-btn del" title="删除" onclick="deleteSong('${s.id}','${esc(s.title)}')">🗑️</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><div>加载失败：${esc(e.message)}</div></div>`;
+  }
+}
+
+async function deleteSong(id, title) {
+  if (!confirm(`确定删除「${title}」吗？此操作不可撤销。`)) return;
+  try {
+    // 删除 Release 中的音频文件
+    const release = await getOrCreateRelease();
+    const assets  = await ghFetch('GET', `/repos/${GH_OWNER}/${GH_REPO}/releases/${release.id}/assets`);
+    const { songs, sha } = await getSongs();
+    const song = songs[id];
+    if (song) {
+      const asset = assets.find(a => a.name === song.filename);
+      if (asset) await ghFetch('DELETE', `/repos/${GH_OWNER}/${GH_REPO}/releases/assets/${asset.id}`);
+      delete songs[id];
+      await saveSongs(songs, sha);
+    }
+    showToast('已删除', 'success');
+    document.getElementById(`song-${id}`)?.remove();
+    loadSongs();
+  } catch(e) {
+    showToast('删除失败：' + e.message, 'error');
+  }
+}
+
+function copyModalUrl() {
+  const url = document.getElementById('modalUrl').textContent;
+  navigator.clipboard?.writeText(url).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  showToast('✓ 链接已复制', 'success');
+}
+
+// ── 颜色选择 ─────────────────────────────────────────────────
+document.getElementById('colorRow').addEventListener('click', e => {
+  const dot = e.target.closest('.color-dot');
+  if (!dot) return;
+  document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+  dot.classList.add('active');
+  selectedColor = dot.dataset.color;
+});
+
+// ── 文件选择 ─────────────────────────────────────────────────
+document.getElementById('audioFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('fileName').textContent = '✓ ' + file.name;
+  if (!document.getElementById('title').value)
+    document.getElementById('title').value = file.name.replace(/\.[^.]+$/, '');
+});
+
+// ── 拖拽上传 ─────────────────────────────────────────────────
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer(); dt.items.add(file);
+  document.getElementById('audioFile').files = dt.files;
+  document.getElementById('fileName').textContent = '✓ ' + file.name;
+  if (!document.getElementById('title').value)
+    document.getElementById('title').value = file.name.replace(/\.[^.]+$/, '');
+});
+
+// ── 点击弹窗外关闭 ───────────────────────────────────────────
+document.getElementById('qrModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('qrModal')) closeModal();
+});
+
+// ── Token 管理 ────────────────────────────────────────────────
+function saveToken() {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (!val) { showToast('请输入 Token', 'error'); return; }
+  setToken(val);
+  document.getElementById('tokenInput').value = '';
+  updateTokenStatus(true);
+  showToast('✅ Token 已保存', 'success');
+  loadSongs();
+}
+
+function updateTokenStatus(saved) {
+  const el = document.getElementById('tokenStatus');
+  if (saved || getToken()) {
+    el.textContent = '✅ 已配置';
+    el.className = 'token-status ok';
+  } else {
+    el.textContent = '⚠️ 未配置，无法上传';
+    el.className = 'token-status warn';
+  }
+}
+
+// 回车保存 Token
+document.getElementById('tokenInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveToken();
+});
+
+// 初始化
+updateTokenStatus();
+loadSongs();
+</script>
+</body>
+</html>
